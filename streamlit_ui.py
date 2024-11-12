@@ -100,6 +100,14 @@ def connect_websocket():
         return True
     return False
 
+def format_message_content(content):
+    if '•' in content:
+        items = content.split('•')
+        # Filter out empty items and create markdown list
+        formatted_items = [f"* {item.strip()}" for item in items if item.strip()]
+        return '\n'.join(formatted_items)
+    return content
+
 def main():
     st.set_page_config(
         page_title="Chat Interface",
@@ -147,7 +155,7 @@ def main():
     with chat_container:
         for message in st.session_state.messages:
             with st.chat_message(message["role"]):
-                st.write(message["content"])
+                st.markdown(format_message_content(message["content"]))
     
     # Process new messages
     if prompt := st.chat_input("Type your message here"):
@@ -157,7 +165,7 @@ def main():
         
         # Add user message to chat
         with st.chat_message("user"):
-            st.write(prompt)
+            st.markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
         
         # Create a placeholder for assistant response
@@ -168,7 +176,7 @@ def main():
                     response = st.session_state.ws_client.get_response()
                     if response:
                         response_content = response.get('response', 'No response received')
-                        response_placeholder.write(response_content)
+                        response_placeholder.markdown(format_message_content(response_content))
                         st.session_state.messages.append({
                             "role": "assistant",
                             "content": response_content
