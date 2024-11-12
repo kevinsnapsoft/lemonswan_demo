@@ -1,11 +1,9 @@
-
 import streamlit as st
 import websocket
 import json
 import threading
 import time
 from datetime import datetime
-import uuid
 import queue
 
 class WebSocketClient:
@@ -27,12 +25,10 @@ class WebSocketClient:
             on_open=self.on_open
         )
         
-        # Start WebSocket connection in a separate thread
         self.ws_thread = threading.Thread(target=self.ws.run_forever)
         self.ws_thread.daemon = True
         self.ws_thread.start()
         
-        # Wait for connection
         timeout = 5
         start_time = time.time()
         while not self.connected and time.time() - start_time < timeout:
@@ -41,7 +37,6 @@ class WebSocketClient:
         return self.connected
     
     def on_message(self, ws, message):
-        """Handle incoming messages"""
         try:
             self.message_queue.put(json.loads(message))
         except Exception as e:
@@ -59,7 +54,6 @@ class WebSocketClient:
         self.connected = True
     
     def send_message(self, message):
-        """Send message to WebSocket server"""
         if self.connected:
             try:
                 payload = {
@@ -74,19 +68,16 @@ class WebSocketClient:
         return False
     
     def get_response(self, timeout=30):
-        """Get response from the message queue"""
         try:
             return self.message_queue.get(timeout=timeout)
         except queue.Empty:
             return None
     
     def close(self):
-        """Close WebSocket connection"""
         if self.ws:
             self.ws.close()
 
 def init_session_state():
-    """Initialize session state variables"""
     if 'messages' not in st.session_state:
         st.session_state.messages = []
     if 'ws_client' not in st.session_state:
@@ -95,7 +86,6 @@ def init_session_state():
         st.session_state.connected = False
 
 def connect_websocket():
-    """Connect to WebSocket server"""
     websocket_url = st.session_state.websocket_url
     api_key = st.session_state.api_key
     
@@ -126,7 +116,6 @@ def main():
     with st.sidebar:
         st.header("Connection Settings")
         
-        # WebSocket URL input
         websocket_url = st.text_input(
             "WebSocket URL",
             value=st.session_state.get('websocket_url', ''),
@@ -134,7 +123,6 @@ def main():
             key="websocket_url"
         )
         
-        # API Key input
         api_key = st.text_input(
             "API Key",
             value=st.session_state.get('api_key', ''),
@@ -142,7 +130,6 @@ def main():
             key="api_key"
         )
         
-        # Connect button
         if st.button("Connect", key="connect"):
             with st.spinner("Connecting..."):
                 if connect_websocket():
@@ -150,7 +137,6 @@ def main():
                 else:
                     st.error("Connection failed!")
         
-        # Connection status
         st.write("Status: " + ("Connected ✅" if st.session_state.connected else "Disconnected ❌"))
     
     # Chat interface
@@ -163,32 +149,34 @@ def main():
             with st.chat_message(message["role"]):
                 st.write(message["content"])
     
-    # Input for new message
+    # Process new messages
     if prompt := st.chat_input("Type your message here"):
         if not st.session_state.connected:
             st.error("Please connect to the WebSocket server first!")
             return
-            
+        
         # Add user message to chat
-        st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.write(prompt)
-            
-        # Send message and wait for response
-        if st.session_state.ws_client.send_message(prompt):
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Create a placeholder for assistant response
+        with st.chat_message("assistant"):
+            response_placeholder = st.empty()
+            with st.spinner(""):
+                if st.session_state.ws_client.send_message(prompt):
                     response = st.session_state.ws_client.get_response()
                     if response:
-                        st.write(response.get('response', 'No response received'))
+                        response_content = response.get('response', 'No response received')
+                        response_placeholder.write(response_content)
                         st.session_state.messages.append({
                             "role": "assistant",
-                            "content": response.get('response', 'No response received')
+                            "content": response_content
                         })
                     else:
-                        st.error("No response received")
-        else:
-            st.error("Failed to send message")
+                        response_placeholder.error("No response received")
+                else:
+                    response_placeholder.error("Failed to send message")
 
 if __name__ == "__main__":
     main()
